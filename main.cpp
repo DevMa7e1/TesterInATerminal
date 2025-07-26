@@ -8,6 +8,8 @@
 #include <sstream>
 #include "helper_functions.hpp"
 #include <ctime>
+#include <curl/curl.h>
+#include "util.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -21,6 +23,51 @@
 
 using namespace std;
 using namespace std::filesystem;
+
+// Pretty terminal colors
+string RST = "\x1B[0m";
+string RED = "\x1B[31m";
+string GRN = "\x1B[32m";
+string CYN = "\x1B[36m";
+string YLW = "\x1B[93m";
+
+void uni_sleep(int ms){
+    #ifdef _WIN32
+    Sleep(ms);
+    #else
+    sleep(ms/1000);
+    #endif
+}
+
+char* makeARequest(char* url){
+    CURL *curl_handle;
+    CURLcode res;
+
+    struct MemoryStruct chunk;
+    chunk.memory = (char*)malloc(1);  
+    chunk.size = 0;
+
+    curl_handle = curl_easy_init();
+    if(curl_handle) {
+      curl_easy_setopt(curl_handle, CURLOPT_URL, url);
+      curl_easy_setopt(curl_handle, CURLOPT_FOLLOWLOCATION, 1L);
+      curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+      curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&chunk);
+      curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "libcurl-agent/1.0");
+
+      res = curl_easy_perform(curl_handle);
+
+      if(res != CURLE_OK) {
+        return "CURL_ERROR";
+      } else {
+        return chunk.memory;
+      }
+      curl_easy_cleanup(curl_handle);
+      free(chunk.memory);
+    }
+    return "CURL_ERROR";
+}
+
 vector<string> processTest(string config){
     vector<string> lines = split2(config, '\n');
     string glines;
@@ -69,14 +116,7 @@ void addToLog(string data){
     string r = read2("log.log");
     write2("log.log", r + data);
 }
-
-bool runTest(vector<string> test){
-    write2("tempInput.txt", test[1]);
-    string args = "";
-    if(split2(test[0], '\n')[1] != "None"){
-        args = split2(test[0], '\n')[1];
-    }
-    string command = "./" + split2(test[0], '\n')[0] + args + " < tempInput.txt";
+bool fileTest(string command, vector<string> test){
     FILE* pipe = POPEN(command.c_str(), "r");
     char buffer[128];
     std::string actual_output = "";
@@ -84,18 +124,21 @@ bool runTest(vector<string> test){
         actual_output += buffer;
     }
     int status = PCLOSE(pipe);
-    cout << "Program exited with code " << status << ".\n";
+    if(status == 0)
+        cout << GRN << "Program exited with code " << status << ".\n";
+    else
+        cout << RED << "Program exited with code " << status << ".\n";
     addToLog("Exited with code " + to_string(status));
     string trimmed_out = trim(actual_output);
     string trimmed_xout = trim(test[2]);
     if(split2(test[0], '\n')[2] == "Exact"){
         if(trimmed_out == trimmed_xout){
-            cout << "Program test succeded!";
+            cout << GRN << "Program test succeded!";
             addToLog("Test succeded.");
         }
         else{
-            cout << "Program test failed." << "\n";
-            cout << "Output: " << trimmed_out;
+            cout << RED << "Program test failed." << "\n";
+            cout << CYN << "Output: " << trimmed_out;
             cout << "\nExpected Output: " << trimmed_xout;
             addToLog("Test failed.");
             addToLog("Output: ");
@@ -105,12 +148,12 @@ bool runTest(vector<string> test){
     }
     if(split2(test[0], '\n')[2] == "Contains"){
         if(trimmed_out.find(trimmed_xout) != string::npos){
-            cout << "Program test succeded!";
+            cout << GRN << "Program test succeded!";
             addToLog("Test succeded.");
         }
         else{
-            cout << "Program test failed." << "\n";
-            cout << "Output: " << trimmed_out;
+            cout << RED << "Program test failed." << "\n";
+            cout << CYN << "Output: " << trimmed_out;
             cout << "\nExpected Output to Contain: " << trimmed_xout;
             addToLog("Test failed.");
             addToLog("Output: ");
@@ -124,12 +167,12 @@ bool runTest(vector<string> test){
             string trimmed_out = trim(out);
             string trimmed_xout = trim(includeAllButFirst(split2(test[2], '\n')));
             if(trimmed_out == trimmed_xout){
-                cout << "Program test succeded!";
+                cout << GRN <<"Program test succeded!";
                 addToLog("Test succeded.");
             }
             else{
-                cout << "Program test failed." << "\n";
-                cout << "Output: " << trimmed_out;
+                cout << RED << "Program test failed." << "\n";
+                cout << CYN << "Output: " << trimmed_out;
                 cout << "\nExpected Output to Contain: " << trimmed_xout;
                 addToLog("Test failed.");
             addToLog("Output: ");
@@ -138,8 +181,8 @@ bool runTest(vector<string> test){
         return trimmed_out == trimmed_xout;
         }
         else{
-            cout << "Program test failed." << "\n";
-            cout << "Output: " << trimmed_out;
+            cout << RED << "Program test failed." << "\n";
+            cout << CYN << "Output: " << trimmed_out;
             cout << "\nExpected Output: " << trimmed_xout;
             addToLog("Test failed.");
             addToLog("File not found.");
@@ -152,12 +195,12 @@ bool runTest(vector<string> test){
             string out = read2(split2(test[2], '\n')[0].c_str());
             string trimmed_out = trim(out);
             if(trimmed_out.find(trimmed_xout) != string::npos){
-                cout << "Program test succeded!";
+                cout << GRN << "Program test succeded!";
                 addToLog("Test succeded.");
             }
             else{
-                cout << "Program test failed." << "\n";
-                cout << "Output: " << trimmed_out;
+                cout << RED << "Program test failed." << "\n";
+                cout << CYN << "Output: " << trimmed_out;
                 cout << "\nExpected Output to Contain: " << trimmed_xout;
                 addToLog("Test failed.");
                 addToLog("Output: ");
@@ -166,30 +209,94 @@ bool runTest(vector<string> test){
             return trimmed_out.find(trimmed_xout) != string::npos;
         }
         else{
-                cout << "Program test failed." << "\n";
-                cout << "Output: " << trimmed_out;
+                cout << RED << "Program test failed." << "\n";
+                cout << CYN << "Output: " << trimmed_out;
                 cout << "\nExpected Output to Contain: " << trimmed_xout;
                 addToLog("Test failed.");
                 addToLog("File not found.");
                 addToLog(trimmed_out);
         }
     }
+    cout << RST;
     return false;
 }
 
-void uni_sleep(int ms){
+bool webTest(string command, vector<string> test){
     #ifdef _WIN32
-    Sleep(ms);
+    system(("start "+command).c_str());
     #else
-    sleep(ms/1000);
+    system((command+" &").c_str());
     #endif
+    uni_sleep(5000);
+    vector<string> ioptions = split2(test[1], '\n');
+    vector<string> ooptions = split2(test[2], '\n');
+    char* url = ioptions[0].data();
+    string data = makeARequest(url);
+    if (data != "CURL_ERROR"){
+        if(ooptions[0] == "Exact"){
+            string exout = includeAllButFirst(ooptions);
+            if(trim(exout) == trim(data)){
+                addToLog("Web test succeded!");
+                cout << GRN << "Web test succeded!" << RST;
+                return true;
+            }
+            else{
+                cout << RED << "Web test failed.\n";
+                cout << CYN << "Expected output: " << trim(exout);
+                cout << "\nActual output: " << trim(data);
+                addToLog("Web test failed.");
+                addToLog("Output: ");
+                addToLog(trim(data));
+            }
+        }
+        else if(ooptions[0] == "Contains"){
+            string exout = includeAllButFirst(ooptions);
+            if(trim(data).find(trim(exout)) != string::npos){
+                addToLog("Web test succeded!");
+                cout << GRN << "Web test succeded" << RST;
+                return true;
+            }
+            else{
+                cout << RED << "Web test failed.\n";
+                cout << CYN << "Expected output: " << trim(exout);
+                cout << "\nActual output: " << trim(data);
+                addToLog("Web test failed.");
+                addToLog("Output: ");
+                addToLog(trim(data));
+            }
+        }
+    }
+    else{
+        cout << RED << "Web test failed\ncURL ERROR." << RST;
+        addToLog("Test failed, cURL error.");
+    }
+    return false;
+}
+
+bool runTest(vector<string> test){
+    write2("tempInput.txt", test[1]);
+    string args = "";
+    if(split2(test[0], '\n')[1] != "None"){
+        args = split2(test[0], '\n')[1];
+    }
+    #ifdef _WIN32
+    string command = split2(test[0], '\n')[0] + " " + args + " < tempInput.txt";
+    #else
+    string command = "./" + split2(test[0], '\n')[0] + " " + args + " < tempInput.txt";
+    #endif
+    if(split2(test[0], '\n')[2] != "Web"){
+        return fileTest(command, test);
+    }
+    else{
+        return webTest(command, test);
+    }
 }
 
 int main(){
     vector<string> configuration;
     configuration = split2(read2("config.txt"), '\n');
     chrono::time_point lwt = last_write_time(configuration[1]);
-    write2("log.log", "");
+    //write2("log.log", ""); //Feature deemed unecessary, enable if you want (auto erases the log file)
     while(true){
         int successful_tests = 0;
         time_t timestamp = time(NULL);
@@ -202,9 +309,9 @@ int main(){
             }
             cout << "\n";
         }
-        cout << "\n\n" << "Successful tests: " << successful_tests << ".\n";
+        cout << "\n\n" << YLW <<"Successful tests: " << successful_tests << ".\n" << RST;
         if(successful_tests == stoi(trim(configuration[0])))
-            cout << "All tests successful!" << "\n";
+            cout << GRN << "All tests successful!" << "\n" << RST;
         chrono::time_point wt = last_write_time(configuration[1]);
         while(lwt == wt){
             if(exists(configuration[1])){
@@ -217,9 +324,10 @@ int main(){
                 }
             }
         }
-        cout << "\n\n-- Change Detected --\n\n";
+        cout << YLW << "\n\n-- Change Detected --\n\n" << RST;
         lwt = last_write_time(configuration[1]);
         uni_sleep(5000);
     }
+    cout << RST;
     return 0;
 }
