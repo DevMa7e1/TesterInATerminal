@@ -116,7 +116,7 @@ void addToLog(string data){
     string r = read2("log.log");
     write2("log.log", r + data);
 }
-bool fileTest(string command, vector<string> test){
+bool fileTest(string command, vector<string> test, bool reverse){
     FILE* pipe = POPEN(command.c_str(), "r");
     char buffer[128];
     std::string actual_output = "";
@@ -133,33 +133,33 @@ bool fileTest(string command, vector<string> test){
     string trimmed_xout = trim(test[2]);
     if(split2(test[0], '\n')[2] == "Exact"){
         if(trimmed_out == trimmed_xout){
-            cout << GRN << "Program test succeded!";
+            cout << GRN << "Program test succeded!" << RST;
             addToLog("Test succeded.");
         }
         else{
             cout << RED << "Program test failed." << "\n";
             cout << CYN << "Output: " << trimmed_out;
-            cout << "\nExpected Output: " << trimmed_xout;
+            cout << "\nExpected Output: " << trimmed_xout << RST;
             addToLog("Test failed.");
             addToLog("Output: ");
             addToLog(trimmed_out);
         }
-        return trimmed_out == trimmed_xout;
+        return (trimmed_out == trimmed_xout) ^ reverse;
     }
     if(split2(test[0], '\n')[2] == "Contains"){
         if(trimmed_out.find(trimmed_xout) != string::npos){
-            cout << GRN << "Program test succeded!";
+            cout << GRN << "Program test succeded!" << RST;
             addToLog("Test succeded.");
         }
         else{
             cout << RED << "Program test failed." << "\n";
             cout << CYN << "Output: " << trimmed_out;
-            cout << "\nExpected Output to Contain: " << trimmed_xout;
+            cout << "\nExpected Output to Contain: " << trimmed_xout << RST;
             addToLog("Test failed.");
             addToLog("Output: ");
             addToLog(trimmed_out);
         }
-        return trimmed_out.find(trimmed_xout) != string::npos;
+        return (trimmed_out.find(trimmed_xout) != string::npos) ^ reverse;
     }
     if(split2(test[0], '\n')[2] == "Exact file"){
         if(exists(split2(test[2], '\n')[0])){
@@ -167,23 +167,23 @@ bool fileTest(string command, vector<string> test){
             string trimmed_out = trim(out);
             string trimmed_xout = trim(includeAllButFirst(split2(test[2], '\n')));
             if(trimmed_out == trimmed_xout){
-                cout << GRN <<"Program test succeded!";
+                cout << GRN <<"Program test succeded!" << RST;
                 addToLog("Test succeded.");
             }
             else{
                 cout << RED << "Program test failed." << "\n";
                 cout << CYN << "Output: " << trimmed_out;
-                cout << "\nExpected Output to Contain: " << trimmed_xout;
+                cout << "\nExpected Output to Contain: " << trimmed_xout << RST;
                 addToLog("Test failed.");
             addToLog("Output: ");
             addToLog(trimmed_out);
             }
-        return trimmed_out == trimmed_xout;
+        return (trimmed_out == trimmed_xout) ^ reverse;
         }
         else{
             cout << RED << "Program test failed." << "\n";
             cout << CYN << "Output: " << trimmed_out;
-            cout << "\nExpected Output: " << trimmed_xout;
+            cout << "\nExpected Output: " << trimmed_xout << RST;
             addToLog("Test failed.");
             addToLog("File not found.");
             addToLog(trimmed_out);
@@ -195,23 +195,23 @@ bool fileTest(string command, vector<string> test){
             string out = read2(split2(test[2], '\n')[0].c_str());
             string trimmed_out = trim(out);
             if(trimmed_out.find(trimmed_xout) != string::npos){
-                cout << GRN << "Program test succeded!";
+                cout << GRN << "Program test succeded!" << RST;
                 addToLog("Test succeded.");
             }
             else{
                 cout << RED << "Program test failed." << "\n";
                 cout << CYN << "Output: " << trimmed_out;
-                cout << "\nExpected Output to Contain: " << trimmed_xout;
+                cout << "\nExpected Output to Contain: " << trimmed_xout << RST;
                 addToLog("Test failed.");
                 addToLog("Output: ");
                 addToLog(trimmed_out);
             }
-            return trimmed_out.find(trimmed_xout) != string::npos;
+            return (trimmed_out.find(trimmed_xout) != string::npos) ^ reverse;
         }
         else{
                 cout << RED << "Program test failed." << "\n";
                 cout << CYN << "Output: " << trimmed_out;
-                cout << "\nExpected Output to Contain: " << trimmed_xout;
+                cout << "\nExpected Output to Contain: " << trimmed_xout << RST;
                 addToLog("Test failed.");
                 addToLog("File not found.");
                 addToLog(trimmed_out);
@@ -221,7 +221,7 @@ bool fileTest(string command, vector<string> test){
     return false;
 }
 
-bool webTest(string command, vector<string> test){
+bool webTest(string command, vector<string> test, bool reverse){
     #ifdef _WIN32
     system(("start "+command).c_str());
     #else
@@ -238,12 +238,12 @@ bool webTest(string command, vector<string> test){
             if(trim(exout) == trim(data)){
                 addToLog("Web test succeded!");
                 cout << GRN << "Web test succeded!" << RST;
-                return true;
+                return true ^reverse;
             }
             else{
                 cout << RED << "Web test failed.\n";
                 cout << CYN << "Expected output: " << trim(exout);
-                cout << "\nActual output: " << trim(data);
+                cout << "\nActual output: " << trim(data) << RST;
                 addToLog("Web test failed.");
                 addToLog("Output: ");
                 addToLog(trim(data));
@@ -254,12 +254,12 @@ bool webTest(string command, vector<string> test){
             if(trim(data).find(trim(exout)) != string::npos){
                 addToLog("Web test succeded!");
                 cout << GRN << "Web test succeded" << RST;
-                return true;
+                return true ^ reverse;
             }
             else{
                 cout << RED << "Web test failed.\n";
                 cout << CYN << "Expected output: " << trim(exout);
-                cout << "\nActual output: " << trim(data);
+                cout << "\nActual output: " << trim(data) << RST;
                 addToLog("Web test failed.");
                 addToLog("Output: ");
                 addToLog(trim(data));
@@ -270,25 +270,19 @@ bool webTest(string command, vector<string> test){
         cout << RED << "Web test failed\ncURL ERROR." << RST;
         addToLog("Test failed, cURL error.");
     }
-    return false;
+    return false ^ reverse;
 }
 
 bool runTest(vector<string> test){
     write2("tempInput.txt", test[1]);
-    string args = "";
-    if(split2(test[0], '\n')[1] != "None"){
-        args = split2(test[0], '\n')[1];
-    }
-    #ifdef _WIN32
-    string command = split2(test[0], '\n')[0] + " " + args + " < tempInput.txt";
-    #else
-    string command = "./" + split2(test[0], '\n')[0] + " " + args + " < tempInput.txt";
-    #endif
+    string cmmd = "";
+    cmmd = split2(test[0], '\n')[1];
+    string command = cmmd + " < tempInput.txt";
     if(split2(test[0], '\n')[2] != "Web"){
-        return fileTest(command, test);
+        return fileTest(command, test, split2(test[0], '\n').size() > 3);
     }
     else{
-        return webTest(command, test);
+        return webTest(command, test, split2(test[0], '\n').size() > 3);
     }
 }
 

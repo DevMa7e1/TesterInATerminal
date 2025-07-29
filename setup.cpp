@@ -6,145 +6,121 @@
 #include <filesystem>
 #include <vector>
 #include <sstream>
-#include "helper_functions.hpp"
 #include <ctime>
+#include "formslib.hpp"
 
 using namespace std;
 
-// Pretty terminal colors
-string RST = "\x1B[0m";
-string RED = "\x1B[31m";
-string GRN = "\x1B[32m";
-string CYN = "\x1B[36m";
-string YLW = "\x1B[93m";
+vector<int> file_elements = {0, 1, 0, 0, 1, 2};
+vector<string> file_texts = {"Name/path of output file", "Check for file content|full,portion", "Expected file contents", "Input provided to STDIN", "Reverse condition?|Yes,No", "Done"};
+vector<int> stdout_elements = {1, 0, 0, 1, 2};
+vector<string> stdout_texts = {"Check for STDOUT content|full,portion", "Expected STDOUT output", "Input provided to STDIN", "Reverse condition?|Yes,No", "Done"};
+vector<int> web_elements = { 0, 1, 0, 1, 2};
+vector<string> web_texts = {"URL", "Check for response content|full,portion", "Expected response", "Reverse condition?|Yes,No", "Done"};
+
+vector<string> fss = {"Output is read from|A file,An HTTP response,STDOUT", "Command to run", "Ok"};
+vector<int> fse = {1, 0, 2};
 
 int main(){
     cout << "Let's set up tests.\n"+CYN+"How many test do you want to set up?>";
     int tests = 0;
     cin >> tests;
-    cout << YLW+"What file should be tested?>";
+    string c = "";
+    getline(cin, c);
+    cout << YLW+"What file will be tested?>";
     string path = "";
-    cin >> path;
-    string cancel = "";
+    getline(cin, path);
     cout << RST+"Now, let's configure the tests.\n";
-    vector<string> files;
     vector<string> modes;
     vector<string> inputs;
-    vector<string> argums;
     vector<string> outputs;
+    vector<string> cmmds;
     for(int i = 0; i < tests; i++){
-        cout << RST << "Test no. " << i << YLW+"\nFile/Command to execute>";
-        string file;
-        cin >> file;
-        files.push_back(file);
-        cout << CYN+"Output is in a file, web page or STDOUT (F/W/S)?>";
-        char fors;
-        cin >> fors;
-        string path2 = "";
-        if(fors == 'F'){
-            cout << YLW+"Name/path of file>";
-            cin >> path2;
-            cout << CYN+"Check if file contains value or for exact file contents (C/E)?>";
-            char core;
-            cin >> core;
-            if(core == 'C'){
-                modes.push_back("Contains file");
-            }
-            else if(core == 'E'){
-                modes.push_back("Exact file");
+        Form form;
+        Form selmode;
+        selmode.elements = fse;
+        selmode.texts = fss;
+        selmode.init();
+        while(true){
+            selmode.displayElements();
+            if(selmode.inputs[2] == "1")
+                break;
+        }
+        cmmds.push_back(selmode.inputs[1]);
+        if(selmode.inputs[0] == "0" || selmode.inputs[0] == ""){
+            form.elements = file_elements;
+            form.texts = file_texts;
+        }
+        else if(selmode.inputs[0] == "1"){
+            form.elements = web_elements;
+            form.texts = web_texts;
+        }
+        else if(selmode.inputs[0] == "2"){
+            form.elements = stdout_elements;
+            form.texts = stdout_texts;
+        }
+        form.init();
+        while(true){
+            form.displayElements();
+            if(form.elements == file_elements){
+                if(form.inputs[5] == "1")
+                    break;
             }
             else{
-                cout << RED << "Unsupported mode. Quitting..." << RST;
-                exit(0);
+                if(form.inputs[4] == "1")
+                    break;
             }
-            cout << CYN << "Expected file contents (type END to stop)\n";
-            string output = "";
-            string lastinput = "";
-            while(lastinput != "END"){
-                getline(cin, lastinput);
-                if(lastinput != "END")
-                    output += lastinput + "\n";
-            }
-            output = "\n" + path2 + output;
-            outputs.push_back(output);
-            cout << CYN << "Input to provide to STDIN (type END to stop)\n";
-            string input = "";
-            lastinput = "";
-            while(lastinput != "END"){
-                getline(cin, lastinput);
-                if(lastinput != "END")
-                    input += lastinput + "\n";
-            }
-            inputs.push_back(input);
         }
-        else if(fors == 'S'){
-            cout << CYN <<"Contains value or Exact value (C/E)?>";
-            char core;
-            cin >> core;
-            if(core == 'C'){
-                modes.push_back("Contains");
-            }
-            else if(core == 'E'){
-                modes.push_back("Exact");
+        if(selmode.inputs[0] == "0" || selmode.inputs[0] == ""){
+            if(form.inputs[1] == "0"){
+                if(form.inputs[4] == "0")
+                    modes.push_back("Exact file\nReverse");
+                else
+                    modes.push_back("Exact file");
             }
             else{
-                cout << RED << "Mode unsupported. Quitting..." << RST;
-                exit(0);
+                if(form.inputs[4] == "0")
+                    modes.push_back("Contains file\nReverse");
+                else
+                    modes.push_back("Contains file");
             }
-            cout << CYN << "Expected output (type END to stop)\n";
-            string output = "";
-            string lastinput = "";
-            while(lastinput != "END"){
-                getline(cin, lastinput);
-                if(lastinput != "END")
-                    output += lastinput + "\n";
-            }
-            outputs.push_back(output);
-            cout << CYN << "Provided STDIN (type END to stop)\n";
-            string input = "";
-            lastinput = "";
-            while(lastinput != "END"){
-                getline(cin, lastinput);
-                if(lastinput != "END")
-                    input += lastinput + "\n";
-            }
-            inputs.push_back(input);
+            outputs.push_back(form.inputs[0]+"\n"+form.inputs[2]);
+            inputs.push_back(form.inputs[3]);
         }
-        else if(fors == 'W'){
-            cout << CYN <<"Contains value or Exact value (C/E)?>";
-            char core;
-            cin >> core;
-            modes.push_back("Web");
-            string url = "";
-            cout << CYN << "URL>";
-            cin >> url;
-            cout << CYN << "Expected response (type END to stop)\n";
-            string output = "";
-            if(core == 'C')
-                output = "Contains\n";
-            else if(core == 'E')
-                output = "Exact\n";
+        else if(selmode.inputs[0] == "2"){
+            if(form.inputs[1] == "0"){
+                if(form.inputs[3] == "0")
+                    modes.push_back("Exact\nReverse");
+                else
+                    modes.push_back("Exact");
+            }
             else{
-                cout << RED << "Unsupported mode, quitting...";
-                exit(0);
+                if(form.inputs[3] == "0")
+                    modes.push_back("Contains\nReverse");
+                else
+                    modes.push_back("Contains");
             }
-            string lastinput = "";
-            while(lastinput != "END"){
-                getline(cin, lastinput);
-                if(lastinput != "END")
-                    output += lastinput + "\n";
-            }
-            outputs.push_back(output);
-            inputs.push_back(url);
+            outputs.push_back(form.inputs[1]);
+            inputs.push_back(form.inputs[2]);
         }
-        cout << YLW << "Arguments (type None for no arguments.)\n";
-        string args = "";
-        getline(cin, args);
-        argums.push_back(args);
-        cout << GRN << "All done.\n" << RST;
+        else if(selmode.inputs[0] == "1"){
+            if(form.inputs[3] == "0")
+                modes.push_back("Web\nReverse");
+            else
+                modes.push_back("Web");
+            string output;
+            if(form.inputs[1] == "0")
+                output += "Exact\n";
+            else
+                output += "Contains\n";
+            output += form.inputs[2];
+            outputs.push_back(output);
+            inputs.push_back(form.inputs[0]);
+        }
     }
-    for(int i = 0; i < files.size(); i++){
-        write2_c(("test"+to_string(i+1)+".txt").c_str(), files[i]+"\n"+argums[i]+"\nInput Start\n"+inputs[i]+"Input End\n"+modes[i]+"\nOutput Start"+outputs[i]+"Output End");
+    for(int i = 0; i < modes.size(); i++){
+        cout << CYN << "Writing test " << i+1 << "\n" << RST;
+        write2_c(("test"+to_string(i+1)+".txt").c_str(), path+"\n"+cmmds[i]+"\nInput Start\n"+inputs[i]+"\nInput End\n"+modes[i]+"\nOutput Start\n"+outputs[i]+"\nOutput End");
     }
     write2("config.txt", to_string(tests)+"\n"+path);
     return 0;

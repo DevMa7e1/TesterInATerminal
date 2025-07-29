@@ -33,6 +33,6 @@
 
 #Project stuff
 *.txt
-test.cpp
+test.*
 .vscode/
 *.log
