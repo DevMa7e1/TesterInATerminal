@@ -77,7 +77,7 @@ int key_press() { // not working: F11 (-122, toggles fullscreen)
         }
     }
 }
-#elif defined(__linux__)
+#else
 #include <sys/ioctl.h>
 #include <termios.h>
 int key_press() { // not working: ¹ (251), num lock (-144), caps lock (-20), windows key (-91), kontext menu key (-93)
