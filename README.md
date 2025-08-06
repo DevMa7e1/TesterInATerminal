@@ -42,7 +42,7 @@ Mac OS: brew, GCC, make and the source code of libcurl<br>
 
 5. Compile main.cpp (add the output from the previous command to the end of this one)  `g++ main.cpp util.c -o tt.exe -static -DCURL_STATICLIB` ...
 
-6. Compile setup.cpp `g++ setup.cpp -o tt-setup.exe`
+6. Compile setup.cpp `g++ setup.cpp -o tt-setup.exe -static`
 
 
 
@@ -79,7 +79,7 @@ If you've done everything correctly, there should only be some warnings, no erro
 
    * Compile main.cpp for MacOS (replace ~/curl with your dir) `g++ main.cpp util.c -o tt -L ~/curl/lib -I ~/curl/include -lcurl -DCURL_STATICLIB -std=c++17`
 
-8. Compile setup.cpp `g++ setup.cpp -o tt-setup`
+8. Compile setup.cpp `g++ setup.cpp -o tt-setup` (for Linux, add `-static` at the end of the command)
 
 
 
