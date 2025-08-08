@@ -82,7 +82,7 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt update
-        sudo apt install -y build-essential make libssl-dev # Install libssl-dev for OpenSSL
+        sudo apt install -y build-essential make libssl-dev zlib1g-dev # Install zlib1g-dev for zlib
 
     - name: Install build tools (macOS)
       if: matrix.os == 'macos-latest'
@@ -186,8 +186,8 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         INSTALL_DIR="${HOME}/curl"
-        # Link against OpenSSL and Zstd for Linux
-        g++ main.cpp util.c -o tt -L "${INSTALL_DIR}/lib" -I "${INSTALL_DIR}/include" -lcurl -DCURL_STATICLIB -static -static-libstdc++ -static-libgcc -std=c++17 -lzstd -lssl -lcrypto
+        # Link against OpenSSL and Zlib for Linux
+        g++ main.cpp util.c -o tt -L "${INSTALL_DIR}/lib" -I "${INSTALL_DIR}/include" -lcurl -DCURL_STATICLIB -static -static-libstdc++ -static-libgcc -std=c++17 -lz -lssl -lcrypto
 
     - name: Compile setup.cpp (Linux)
       if: matrix.os == 'ubuntu-latest'
