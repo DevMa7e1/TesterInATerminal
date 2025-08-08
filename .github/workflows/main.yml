@@ -54,9 +54,18 @@ jobs:
         # This will make sure pkg-config errors are caught.
         set -e
 
+        # Ensure MSYS2's pkg-config is used and its environment is correct
+        # The default install path for MSYS2 packages is /ucrt64/lib/pkgconfig
+        export PKG_CONFIG_PATH="/ucrt64/lib/pkgconfig"
+        # Explicitly use the MSYS2 bash shell for pkg-config to avoid conflicts with other Perl installations
+        PKG_CONFIG_CMD="/ucrt64/bin/pkg-config"
+
+        echo "Using pkg-config command: ${PKG_CONFIG_CMD}"
+        ${PKG_CONFIG_CMD} --version # Verify pkg-config is found and runs
+
         # Get args required for compilation with pkg-config for both cflags (includes) and libs
-        CURL_CFLAGS=$(pkg-config --define-prefix --static --cflags libcurl)
-        CURL_LIBS=$(pkg-config --define-prefix --static --libs libcurl)
+        CURL_CFLAGS=$(${PKG_CONFIG_CMD} --define-prefix --static --cflags libcurl)
+        CURL_LIBS=$(${PKG_CONFIG_CMD} --define-prefix --static --libs libcurl)
         echo "CURL_CFLAGS: $CURL_CFLAGS" # For debugging purposes
         echo "CURL_LIBS: $CURL_LIBS" # For debugging purposes
 
@@ -180,27 +189,43 @@ jobs:
         # For Intel Macs
         export PATH="/usr/local/bin:$PATH"
 
-        echo "PATH: $PATH" # Print PATH for debugging
-        g++ --version # Print g++ version for debugging
+        # Explicitly use g++-13 (or the latest GCC version installed by Homebrew)
+        # This ensures we're using the GNU compiler, not Apple Clang, for consistent C++17 support.
+        # If g++-13 isn't found, this will fall back to g++ which might still be clang.
+        GXX_CMD="g++-13"
+        if ! command -v "$GXX_CMD" &> /dev/null; then
+            echo "Warning: g++-13 not found, falling back to default g++."
+            GXX_CMD="g++"
+        fi
+
+        echo "Using g++ command: $GXX_CMD" # For debugging
+        $GXX_CMD --version # Print g++ version for debugging
 
         INSTALL_DIR="${HOME}/curl"
-        g++ main.cpp util.c -o tt -L "${INSTALL_DIR}/lib" -I "${INSTALL_DIR}/include" -lcurl -DCURL_STATICLIB -std=c++17
+        $GXX_CMD main.cpp util.c -o tt -L "${INSTALL_DIR}/lib" -I "${INSTALL_DIR}/include" -lcurl -DCURL_STATICLIB -std=c++17
 
     - name: Compile setup.cpp (macOS)
       if: matrix.os == 'macos-latest'
       run: |
+        # Explicitly use g++-13 (or the latest GCC version installed by Homebrew)
+        GXX_CMD="g++-13"
+        if ! command -v "$GXX_CMD" &> /dev/null; then
+            echo "Warning: g++-13 not found, falling back to default g++."
+            GXX_CMD="g++"
+        fi
+        
         # Added -std=c++17 to ensure modern C++ features are enabled for setup.cpp
-        g++ setup.cpp -o tt-setup -std=c++17
+        $GXX_CMD setup.cpp -o tt-setup -std=c++17
 
     # --- Run Compiled Applications (Optional) ---
     - name: Run compiled applications (optional)
       run: |
         if [ "${{ matrix.os }}" == "windows-latest" ]; then
           ./tt.exe
-          ./tt-setup.exe
+          # Removed ./tt-setup.exe as it expects user input
         else
           ./tt
-          ./tt-setup
+          # Removed ./tt-setup as it expects user input
         fi
 
     - name: Verify compiled files (Windows)
