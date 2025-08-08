@@ -28,7 +28,6 @@ jobs:
       with:
         msystem: UCRT64 # Use the Universal C Runtime 64-bit environment
         update: true
-        # Added 'perl' to the install list to ensure Pod::Usage.pm is available for pkg-config
         install: >-
           mingw-w64-ucrt-x86_64-toolchain
           mingw-w64-ucrt-x86_64-curl
@@ -44,7 +43,7 @@ jobs:
           mingw-w64-ucrt-x86_64-ngtcp2
           mingw-w64-ucrt-x86_64-libiconv
           mingw-w64-ucrt-x86_64-libunistring
-          perl # Ensure Perl and its modules are installed for pkg-config
+          perl
         shell: bash {0} # Set the shell to msys2 bash for subsequent steps
 
     - name: Compile on Windows
@@ -92,6 +91,8 @@ jobs:
     - name: Download, configure, and build libcurl (Linux/macOS)
       if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
       run: |
+        set -e # Exit immediately if any command fails
+
         CURL_VERSION="8.7.1" # Using a specific stable version for reproducibility
         CURL_TARBALL="curl-${CURL_VERSION}.tar.gz"
         CURL_DIR="curl-${CURL_VERSION}"
@@ -104,62 +105,14 @@ jobs:
         tar -xzf "${CURL_TARBALL}" # Extract the source
         cd "${CURL_DIR}" # Navigate into the extracted source directory
 
-        # Configure libcurl with the specified minimal flags
+        # Configure libcurl with simplified flags
+        # Retained crucial static linking flags and explicit --without-ssl/--without-zlib
         ./configure \
           --prefix="${INSTALL_DIR}" \
           --disable-shared \
           --enable-static \
           --without-ssl \
-          --without-zlib \
-          --disable-ftp \
-          --disable-file \
-          --disable-ldap \
-          --disable-ldaps \
-          --disable-rtsp \
-          --disable-dict \
-          --disable-telnet \
-          --disable-tftp \
-          --disable-pop3 \
-          --disable-imap \
-          --disable-smtp \
-          --disable-gopher \
-          --disable-smb \
-          --disable-unix-sockets \
-          --disable-verbose \
-          --disable-ntlm-wb \
-          --disable-tls-srp \
-          --disable-threaded-resolver \
-          --disable-libcurl-option \
-          --disable-alt-svc \
-          --disable-doh \
-          --disable-hsts \
-          --disable-http-proxy \
-          --disable-metalink \
-          --disable-mqtt \
-          --disable-proxy \
-          --disable-rtmp \
-          --disable-sspi \
-          --disable-websockets \
-          --disable-pthreads \
-          --disable-manual \
-          --disable-ipv6 \
-          --without-brotli \
-          --without-zstd \
-          --without-nghttp2 \
-          --without-libidn2 \
-          --without-libpsl \
-          --without-libssh2 \
-          --without-gnutls \
-          --without-librtmp \
-          --without-mbedtls \
-          --without-nss \
-          --without-openssl \
-          --without-winldap \
-          --without-wincrypt \
-          --without-schannel \
-          --without-ca-bundle \
-          --without-ca-path \
-          --disable-netrc
+          --without-zlib
         
         make # Compile libcurl
         make install # Install libcurl to the specified prefix
