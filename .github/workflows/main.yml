@@ -1,0 +1,171 @@
+name: C++ with Static Libcurl (Multi-platform)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    # Use a matrix strategy to run jobs on different operating systems
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4 # Checks out your repository under $GITHUB_WORKSPACE
+
+    # --- Windows Compilation Steps ---
+    - name: Install MSYS2 and required libs (Windows)
+      if: matrix.os == 'windows-latest'
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: UCRT64 # Use the Universal C Runtime 64-bit environment
+        update: true
+        install: >- # Install all specified packages
+          mingw-w64-ucrt-x86_64-toolchain
+          mingw-w64-ucrt-x86_64-curl
+          mingw-w64-ucrt-x86_64-openssl
+          mingw-w64-ucrt-x86_64-zlib
+          mingw-w64-ucrt-x86_64-libidn2
+          mingw-w64-ucrt-x86_64-libssh2
+          mingw-w64-ucrt-x86_64-libpsl
+          mingw-w64-ucrt-x86_64-brotli
+          mingw-w64-ucrt-x86_64-zstd
+          mingw-w64-ucrt-x86_64-nghttp2
+          mingw-w64-ucrt-x86_64-nghttp3
+          mingw-w64-ucrt-x86_64-ngtcp2
+          mingw-w64-ucrt-x86_64-libiconv
+          mingw-w64-ucrt-x86_64-libunistring
+        shell: bash {0} # Set the shell to msys2 bash for subsequent steps
+
+    - name: Compile on Windows
+      if: matrix.os == 'windows-latest'
+      run: |
+        # Get args required for compilation with pkg-config
+        # --define-prefix ensures paths are correct for the MSYS2 environment
+        CURL_LIBS=$(pkg-config --define-prefix --static --libs libcurl)
+        echo "CURL_LIBS: $CURL_LIBS" # For debugging purposes
+
+        # Compile main.cpp and util.c into tt.exe
+        g++ main.cpp util.c -o tt.exe -static -DCURL_STATICLIB ${CURL_LIBS} -std=c++17
+
+        # Compile setup.cpp into tt-setup.exe
+        g++ setup.cpp -o tt-setup.exe -static -std=c++17
+      shell: bash {0} # Ensure we're in the MSYS2 bash shell for these commands
+
+    # --- Linux and macOS Compilation Steps ---
+    - name: Install build tools (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt update
+        sudo apt install -y build-essential make
+
+    - name: Install build tools (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew install gcc make
+
+    - name: Download, configure, and build libcurl (Linux/macOS)
+      if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
+      run: |
+        CURL_VERSION="8.7.1" # Using a specific stable version for reproducibility
+        CURL_TARBALL="curl-${CURL_VERSION}.tar.gz"
+        CURL_DIR="curl-${CURL_VERSION}"
+        INSTALL_DIR="${HOME}/curl" # User's specified installation directory
+
+        mkdir -p "${INSTALL_DIR}" # Create the installation directory
+        
+        # Download libcurl source
+        curl -LO "https://curl.se/download/${CURL_TARBALL}"
+        tar -xzf "${CURL_TARBALL}" # Extract the source
+        cd "${CURL_DIR}" # Navigate into the extracted source directory
+
+        # Configure libcurl with the specified minimal flags
+        ./configure \
+          --prefix="${INSTALL_DIR}" \
+          --disable-shared \
+          --enable-static \
+          --without-ssl \
+          --without-zlib \
+          --disable-ftp \
+          --disable-file \
+          --disable-ldap \
+          --disable-ldaps \
+          --disable-rtsp \
+          --disable-dict \
+          --disable-telnet \
+          --disable-tftp \
+          --disable-pop3 \
+          --disable-imap \
+          --disable-smtp \
+          --disable-gopher \
+          --disable-smb \
+          --disable-unix-sockets \
+          --disable-verbose \
+          --disable-ntlm-wb \
+          --disable-tls-srp \
+          --disable-threaded-resolver \
+          --disable-libcurl-option \
+          --disable-alt-svc \
+          --disable-doh \
+          --disable-hsts \
+          --disable-http-proxy \
+          --disable-metalink \
+          --disable-mqtt \
+          --disable-proxy \
+          --disable-rtmp \
+          --disable-sspi \
+          --disable-websockets \
+          --disable-pthreads \
+          --disable-manual \
+          --disable-ipv6 \
+          --without-brotli \
+          --without-zstd \
+          --without-nghttp2 \
+          --without-libidn2 \
+          --without-libpsl \
+          --without-libssh2 \
+          --without-gnutls \
+          --without-librtmp \
+          --without-mbedtls \
+          --without-nss \
+          --without-openssl \
+          --without-winldap \
+          --without-wincrypt \
+          --without-schannel \
+          --without-ca-bundle \
+          --without-ca-path \
+          --disable-netrc
+        
+        make # Compile libcurl
+        make install # Install libcurl to the specified prefix
+      working-directory: ${{ github.workspace }} # Ensure we start in the repo root
+
+    - name: Compile main.cpp and util.c (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        INSTALL_DIR="${HOME}/curl"
+        g++ main.cpp util.c -o tt -L "${INSTALL_DIR}/lib" -I "${INSTALL_DIR}/include" -lcurl -DCURL_STATICLIB -static -static-libstdc++ -static-libgcc -std=c++17
+
+    - name: Compile setup.cpp (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        g++ setup.cpp -o tt-setup -static
+
+    - name: Compile main.cpp and util.c (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        INSTALL_DIR="${HOME}/curl"
+        g++ main.cpp util.c -o tt -L "${INSTALL_DIR}/lib" -I "${INSTALL_DIR}/include" -lcurl -DCURL_STATICLIB -std=c++17
+
+    - name: Compile setup.cpp (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        g++ setup.cpp -o tt-setup
