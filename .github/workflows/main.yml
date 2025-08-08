@@ -52,8 +52,13 @@ jobs:
         # Prepend MSYS2 bin directory to PATH to ensure its pkg-config is found first
         export PATH="/ucrt64/bin:$PATH"
         
-        # Explicitly use the MSYS2 pkg-config binary
-        PKG_CONFIG_CMD="/ucrt64/bin/pkg-config" 
+        echo "Current PATH after prepend: $PATH"
+        echo "Attempting to locate pkg-config:"
+        which pkg-config
+        ls -l /ucrt64/bin/pkg-config || echo "/ucrt64/bin/pkg-config not found or accessible"
+
+        # Rely on the PATH for pkg-config
+        PKG_CONFIG_CMD="pkg-config"
 
         echo "Using pkg-config command: $(which ${PKG_CONFIG_CMD})"
         ${PKG_CONFIG_CMD} --version # Verify pkg-config is found and runs
@@ -82,9 +87,8 @@ jobs:
     - name: Install build tools (macOS)
       if: matrix.os == 'macos-latest'
       run: |
-        brew install gcc make openldap # Install openldap for LDAP symbols
-        # Ensure Homebrew's openldap is linked
-        brew link --force openldap
+        brew install gcc make openldap # Install openldap for LDAP symbols if libcurl insists on them
+        brew link --force openldap # Force link to ensure it's in expected paths
 
     - name: Download, configure, and build libcurl (Linux/macOS)
       if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
@@ -101,15 +105,62 @@ jobs:
         tar -xzf "${CURL_TARBALL}" # Extract the source
         cd "${CURL_DIR}" # Navigate into the extracted source directory
 
-        # Configure libcurl with simplified flags, explicitly disabling LDAP
+        # Configure libcurl with the *full* set of disable/without flags from your documentation.
+        # This is the most aggressive way to ensure a minimal libcurl without unwanted dependencies.
+        # Warnings about unrecognized options are expected for some flags with newer curl versions.
         ./configure \
           --prefix="${INSTALL_DIR}" \
           --disable-shared \
           --enable-static \
+          --disable-ftp \
+          --disable-file \
           --disable-ldap \
           --disable-ldaps \
-          --without-ssl \
-          --without-zlib
+          --disable-rtsp \
+          --disable-dict \
+          --disable-telnet \
+          --disable-tftp \
+          --disable-pop3 \
+          --disable-imap \
+          --disable-smtp \
+          --disable-gopher \
+          --disable-smb \
+          --disable-unix-sockets \
+          --disable-verbose \
+          --disable-ntlm-wb \
+          --disable-tls-srp \
+          --disable-threaded-resolver \
+          --disable-libcurl-option \
+          --disable-alt-svc \
+          --disable-doh \
+          --disable-hsts \
+          --disable-http-proxy \
+          --disable-metalink \
+          --disable-mqtt \
+          --disable-proxy \
+          --disable-rtmp \
+          --disable-sspi \
+          --disable-websockets \
+          --disable-pthreads \
+          --disable-manual \
+          --disable-ipv6 \
+          --without-brotli \
+          --without-zstd \
+          --without-nghttp2 \
+          --without-libidn2 \
+          --without-libpsl \
+          --without-libssh2 \
+          --without-gnutls \
+          --without-librtmp \
+          --without-mbedtls \
+          --without-nss \
+          --without-openssl \
+          --without-winldap \
+          --without-wincrypt \
+          --without-schannel \
+          --without-ca-bundle \
+          --without-ca-path \
+          --disable-netrc
         
         make # Compile libcurl
         make install # Install libcurl to the specified prefix
@@ -153,12 +204,12 @@ jobs:
         $GXX_CMD --version # Print g++ version for debugging
 
         INSTALL_DIR="${HOME}/curl"
-        # Added macOS-specific frameworks and LDAP libraries for static linking
+        # Explicitly link against OpenLDAP libraries and macOS frameworks
         $GXX_CMD main.cpp util.c -o tt \
           -L "${INSTALL_DIR}/lib" -I "${INSTALL_DIR}/include" \
           -lcurl -DCURL_STATICLIB -std=c++17 \
-          -framework CoreFoundation -framework SystemConfiguration \
-          -L"$(brew --prefix openldap)/lib" -lldap -lber -lz # Explicitly add OpenLDAP lib path
+          -L"$(brew --prefix openldap)/lib" -lldap -lber \
+          -framework CoreFoundation -framework SystemConfiguration -lz
 
     - name: Compile setup.cpp (macOS)
       if: matrix.os == 'macos-latest'
