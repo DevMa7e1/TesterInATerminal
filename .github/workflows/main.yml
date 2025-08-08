@@ -49,15 +49,13 @@ jobs:
     - name: Compile on Windows
       if: matrix.os == 'windows-latest'
       run: |
-        # Removed 'set -e' to allow compilation to continue past warnings.
-
         # Ensure MSYS2's pkg-config is used and its environment is correct
         # The default install path for MSYS2 packages is /ucrt64/lib/pkgconfig
         export PKG_CONFIG_PATH="/ucrt64/lib/pkgconfig"
         # Explicitly use the MSYS2 bash shell for pkg-config to avoid conflicts with other Perl installations
-        PKG_CONFIG_CMD="/ucrt64/bin/pkg-config"
+        PKG_CONFIG_CMD="pkg-config" # Rely on msys2/setup-msys2 to put it in PATH
 
-        echo "Using pkg-config command: ${PKG_CONFIG_CMD}"
+        echo "Using pkg-config command: $(which ${PKG_CONFIG_CMD})"
         ${PKG_CONFIG_CMD} --version # Verify pkg-config is found and runs
 
         # Get args required for compilation with pkg-config for both cflags (includes) and libs
@@ -84,13 +82,13 @@ jobs:
     - name: Install build tools (macOS)
       if: matrix.os == 'macos-latest'
       run: |
-        brew install gcc make
+        brew install gcc make openldap # Install openldap for LDAP symbols
+        # Ensure Homebrew's openldap is linked
+        brew link --force openldap
 
     - name: Download, configure, and build libcurl (Linux/macOS)
       if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
       run: |
-        # Removed 'set -e' to allow compilation to continue past warnings.
-
         CURL_VERSION="8.7.1" # Using a specific stable version for reproducibility
         CURL_TARBALL="curl-${CURL_VERSION}.tar.gz"
         CURL_DIR="curl-${CURL_VERSION}"
@@ -103,31 +101,15 @@ jobs:
         tar -xzf "${CURL_TARBALL}" # Extract the source
         cd "${CURL_DIR}" # Navigate into the extracted source directory
 
-        # Configure libcurl with simplified flags
-        # Retained crucial static linking flags and explicit --without-ssl/--without-zlib
+        # Configure libcurl with simplified flags, explicitly disabling LDAP
         ./configure \
           --prefix="${INSTALL_DIR}" \
           --disable-shared \
           --enable-static \
+          --disable-ldap \
+          --disable-ldaps \
           --without-ssl \
-          --without-zlib \
-          --without-brotli \
-          --without-zstd \
-          --without-nghttp2 \
-          --without-libidn2 \
-          --without-libpsl \
-          --without-libssh2 \
-          --without-gnutls \
-          --without-librtmp \
-          --without-mbedtls \
-          --without-nss \
-          --without-openssl \
-          --without-winldap \
-          --without-wincrypt \
-          --without-schannel \
-          --without-ca-bundle \
-          --without-ca-path \
-          --disable-netrc
+          --without-zlib
         
         make # Compile libcurl
         make install # Install libcurl to the specified prefix
@@ -171,7 +153,12 @@ jobs:
         $GXX_CMD --version # Print g++ version for debugging
 
         INSTALL_DIR="${HOME}/curl"
-        $GXX_CMD main.cpp util.c -o tt -L "${INSTALL_DIR}/lib" -I "${INSTALL_DIR}/include" -lcurl -DCURL_STATICLIB -std=c++17
+        # Added macOS-specific frameworks and LDAP libraries for static linking
+        $GXX_CMD main.cpp util.c -o tt \
+          -L "${INSTALL_DIR}/lib" -I "${INSTALL_DIR}/include" \
+          -lcurl -DCURL_STATICLIB -std=c++17 \
+          -framework CoreFoundation -framework SystemConfiguration \
+          -lldap -lber -lz # -lz is for zlib, often a dependency
 
     - name: Compile setup.cpp (macOS)
       if: matrix.os == 'macos-latest'
@@ -186,16 +173,8 @@ jobs:
         # Added -std=c++17 to ensure modern C++ features are enabled for setup.cpp
         $GXX_CMD setup.cpp -o tt-setup -std=c++17
 
-    # --- Run Compiled Applications (Optional) ---
-    - name: Run compiled applications (optional)
-      run: |
-        if [ "${{ matrix.os }}" == "windows-latest" ]; then
-          ./tt.exe
-          # Removed ./tt-setup.exe as it expects user input
-        else
-          ./tt
-          # Removed ./tt-setup as it expects user input
-        fi
+    # --- Remove Run Compiled Applications Step ---
+    # Removed the step to run compiled executables as requested.
 
     - name: Verify compiled files (Windows)
       if: matrix.os == 'windows-latest'
