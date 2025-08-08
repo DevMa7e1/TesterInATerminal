@@ -28,7 +28,8 @@ jobs:
       with:
         msystem: UCRT64 # Use the Universal C Runtime 64-bit environment
         update: true
-        install: >- # Install all specified packages
+        # Added 'perl' to the install list to ensure Pod::Usage.pm is available for pkg-config
+        install: >-
           mingw-w64-ucrt-x86_64-toolchain
           mingw-w64-ucrt-x86_64-curl
           mingw-w64-ucrt-x86_64-openssl
@@ -43,11 +44,16 @@ jobs:
           mingw-w64-ucrt-x86_64-ngtcp2
           mingw-w64-ucrt-x86_64-libiconv
           mingw-w64-ucrt-x86_64-libunistring
+          perl # Ensure Perl and its modules are installed for pkg-config
         shell: bash {0} # Set the shell to msys2 bash for subsequent steps
 
     - name: Compile on Windows
       if: matrix.os == 'windows-latest'
       run: |
+        # Set -e to exit immediately if a command exits with a non-zero status.
+        # This will make sure pkg-config errors are caught.
+        set -e
+
         # Get args required for compilation with pkg-config for both cflags (includes) and libs
         CURL_CFLAGS=$(pkg-config --define-prefix --static --cflags libcurl)
         CURL_LIBS=$(pkg-config --define-prefix --static --libs libcurl)
@@ -163,7 +169,7 @@ jobs:
     - name: Compile setup.cpp (Linux)
       if: matrix.os == 'ubuntu-latest'
       run: |
-        g++ setup.cpp -o tt-setup -static
+        g++ setup.cpp -o tt-setup -static -std=c++17 # Added -std=c++17 for consistency
 
     - name: Compile main.cpp and util.c (macOS)
       if: matrix.os == 'macos-latest'
@@ -183,7 +189,19 @@ jobs:
     - name: Compile setup.cpp (macOS)
       if: matrix.os == 'macos-latest'
       run: |
-        g++ setup.cpp -o tt-setup
+        # Added -std=c++17 to ensure modern C++ features are enabled for setup.cpp
+        g++ setup.cpp -o tt-setup -std=c++17
+
+    # --- Run Compiled Applications (Optional) ---
+    - name: Run compiled applications (optional)
+      run: |
+        if [ "${{ matrix.os }}" == "windows-latest" ]; then
+          ./tt.exe
+          ./tt-setup.exe
+        else
+          ./tt
+          ./tt-setup
+        fi
 
     - name: Verify compiled files (Windows)
       if: matrix.os == 'windows-latest'
