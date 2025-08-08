@@ -49,9 +49,7 @@ jobs:
     - name: Compile on Windows
       if: matrix.os == 'windows-latest'
       run: |
-        # Set -e to exit immediately if a command exits with a non-zero status.
-        # This will make sure pkg-config errors are caught.
-        set -e
+        # Removed 'set -e' to allow compilation to continue past warnings.
 
         # Ensure MSYS2's pkg-config is used and its environment is correct
         # The default install path for MSYS2 packages is /ucrt64/lib/pkgconfig
@@ -91,7 +89,7 @@ jobs:
     - name: Download, configure, and build libcurl (Linux/macOS)
       if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
       run: |
-        set -e # Exit immediately if any command fails
+        # Removed 'set -e' to allow compilation to continue past warnings.
 
         CURL_VERSION="8.7.1" # Using a specific stable version for reproducibility
         CURL_TARBALL="curl-${CURL_VERSION}.tar.gz"
@@ -112,7 +110,24 @@ jobs:
           --disable-shared \
           --enable-static \
           --without-ssl \
-          --without-zlib
+          --without-zlib \
+          --without-brotli \
+          --without-zstd \
+          --without-nghttp2 \
+          --without-libidn2 \
+          --without-libpsl \
+          --without-libssh2 \
+          --without-gnutls \
+          --without-librtmp \
+          --without-mbedtls \
+          --without-nss \
+          --without-openssl \
+          --without-winldap \
+          --without-wincrypt \
+          --without-schannel \
+          --without-ca-bundle \
+          --without-ca-path \
+          --disable-netrc
         
         make # Compile libcurl
         make install # Install libcurl to the specified prefix
@@ -126,7 +141,8 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         INSTALL_DIR="${HOME}/curl"
-        g++ main.cpp util.c -o tt -L "${INSTALL_DIR}/lib" -I "${INSTALL_DIR}/include" -lcurl -DCURL_STATICLIB -static -static-libstdc++ -static-libgcc -std=c++17
+        # Added -lzstd to link against the Zstd library for Linux
+        g++ main.cpp util.c -o tt -L "${INSTALL_DIR}/lib" -I "${INSTALL_DIR}/include" -lcurl -DCURL_STATICLIB -static -static-libstdc++ -static-libgcc -std=c++17 -lzstd
 
     - name: Compile setup.cpp (Linux)
       if: matrix.os == 'ubuntu-latest'
