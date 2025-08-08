@@ -49,16 +49,16 @@ jobs:
     - name: Compile on Windows
       if: matrix.os == 'windows-latest'
       run: |
-        # Prepend MSYS2 bin directory to PATH to ensure its pkg-config is found first
+        # Ensure MSYS2's bin directory is at the front of the PATH
         export PATH="/ucrt64/bin:$PATH"
         
-        echo "Current PATH after prepend: $PATH"
+        echo "Current PATH: $PATH"
         echo "Attempting to locate pkg-config:"
         which pkg-config
         ls -l /ucrt64/bin/pkg-config || echo "/ucrt64/bin/pkg-config not found or accessible"
 
-        # Rely on the PATH for pkg-config
-        PKG_CONFIG_CMD="pkg-config"
+        # Explicitly use the MSYS2 pkg-config binary
+        PKG_CONFIG_CMD="/ucrt64/bin/pkg-config" 
 
         echo "Using pkg-config command: $(which ${PKG_CONFIG_CMD})"
         ${PKG_CONFIG_CMD} --version # Verify pkg-config is found and runs
@@ -87,8 +87,9 @@ jobs:
     - name: Install build tools (macOS)
       if: matrix.os == 'macos-latest'
       run: |
-        brew install gcc make openldap # Install openldap for LDAP symbols if libcurl insists on them
-        brew link --force openldap # Force link to ensure it's in expected paths
+        brew install gcc make
+        # Removed openldap installation and linking.
+        # We want libcurl to NOT use LDAP, so we shouldn't provide the libraries.
 
     - name: Download, configure, and build libcurl (Linux/macOS)
       if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
@@ -107,7 +108,7 @@ jobs:
 
         # Configure libcurl with the *full* set of disable/without flags from your documentation.
         # This is the most aggressive way to ensure a minimal libcurl without unwanted dependencies.
-        # Warnings about unrecognized options are expected for some flags with newer curl versions.
+        # Explicitly disabling LDAP here is crucial for macOS.
         ./configure \
           --prefix="${INSTALL_DIR}" \
           --disable-shared \
@@ -204,11 +205,12 @@ jobs:
         $GXX_CMD --version # Print g++ version for debugging
 
         INSTALL_DIR="${HOME}/curl"
-        # Explicitly link against OpenLDAP libraries and macOS frameworks
+        # Removed LDAP libraries from linking. If libcurl is configured correctly to disable LDAP,
+        # these should not be needed and can cause "library not found" errors if static versions
+        # are not readily available or if the configure truly disabled them.
         $GXX_CMD main.cpp util.c -o tt \
           -L "${INSTALL_DIR}/lib" -I "${INSTALL_DIR}/include" \
           -lcurl -DCURL_STATICLIB -std=c++17 \
-          -L"$(brew --prefix openldap)/lib" -lldap -lber \
           -framework CoreFoundation -framework SystemConfiguration -lz
 
     - name: Compile setup.cpp (macOS)
