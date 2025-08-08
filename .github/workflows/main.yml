@@ -48,13 +48,15 @@ jobs:
     - name: Compile on Windows
       if: matrix.os == 'windows-latest'
       run: |
-        # Get args required for compilation with pkg-config
-        # --define-prefix ensures paths are correct for the MSYS2 environment
+        # Get args required for compilation with pkg-config for both cflags (includes) and libs
+        CURL_CFLAGS=$(pkg-config --define-prefix --static --cflags libcurl)
         CURL_LIBS=$(pkg-config --define-prefix --static --libs libcurl)
+        echo "CURL_CFLAGS: $CURL_CFLAGS" # For debugging purposes
         echo "CURL_LIBS: $CURL_LIBS" # For debugging purposes
 
         # Compile main.cpp and util.c into tt.exe
-        g++ main.cpp util.c -o tt.exe -static -DCURL_STATICLIB ${CURL_LIBS} -std=c++17
+        # Added CURL_CFLAGS to ensure include paths are found
+        g++ main.cpp util.c -o tt.exe -static -DCURL_STATICLIB ${CURL_CFLAGS} ${CURL_LIBS} -std=c++17
 
         # Compile setup.cpp into tt-setup.exe
         g++ setup.cpp -o tt-setup.exe -static -std=c++17
@@ -146,6 +148,10 @@ jobs:
         
         make # Compile libcurl
         make install # Install libcurl to the specified prefix
+        
+        echo "--- Contents of installed curl directory ---"
+        ls -R "${INSTALL_DIR}" # List installed files for debugging
+        echo "------------------------------------------"
       working-directory: ${{ github.workspace }} # Ensure we start in the repo root
 
     - name: Compile main.cpp and util.c (Linux)
@@ -162,6 +168,15 @@ jobs:
     - name: Compile main.cpp and util.c (macOS)
       if: matrix.os == 'macos-latest'
       run: |
+        # Add Homebrew paths to ensure correct g++ and other tools are found
+        # For Apple Silicon Macs (M1/M2/M3)
+        export PATH="/opt/homebrew/bin:$PATH"
+        # For Intel Macs
+        export PATH="/usr/local/bin:$PATH"
+
+        echo "PATH: $PATH" # Print PATH for debugging
+        g++ --version # Print g++ version for debugging
+
         INSTALL_DIR="${HOME}/curl"
         g++ main.cpp util.c -o tt -L "${INSTALL_DIR}/lib" -I "${INSTALL_DIR}/include" -lcurl -DCURL_STATICLIB -std=c++17
 
@@ -169,3 +184,16 @@ jobs:
       if: matrix.os == 'macos-latest'
       run: |
         g++ setup.cpp -o tt-setup
+
+    - name: Verify compiled files (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        ls -l tt.exe
+        ls -l tt-setup.exe
+      shell: bash {0}
+
+    - name: Verify compiled files (Linux/macOS)
+      if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
+      run: |
+        ls -l tt
+        ls -l tt-setup
