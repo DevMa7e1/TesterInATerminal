@@ -75,6 +75,7 @@ jobs:
 
         # Compile setup.cpp into tt-setup.exe
         g++ setup.cpp -o tt-setup.exe -static -std=c++17
+        g++ test.cpp -o test.exe -std=c++17 -static
       shell: bash {0} # Ensure we're in the MSYS2 bash shell for these commands
 
     # --- Linux and macOS Compilation Steps ---
@@ -193,6 +194,7 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         g++ setup.cpp -o tt-setup -static -std=c++17 # Added -std=c++17 for consistency
+        g++ test.cpp -o test.out -static
 
     - name: Compile main.cpp and util.c (macOS)
       if: matrix.os == 'macos-latest'
@@ -231,6 +233,7 @@ jobs:
         
         # Added -std=c++17 to ensure modern C++ features are enabled for setup.cpp
         $GXX_CMD setup.cpp -o tt-setup -std=c++17
+        $GXX_CMD test.cpp -o test.app -std=c++17
 
     # --- Remove Run Compiled Applications Step ---
     # Removed the step to run compiled executables as requested.
@@ -240,6 +243,7 @@ jobs:
       run: |
         ls -l tt.exe
         ls -l tt-setup.exe
+        ls -l test.exe
       shell: bash {0}
 
     - name: Verify compiled files (Linux/macOS)
@@ -247,6 +251,7 @@ jobs:
       run: |
         ls -l tt
         ls -l tt-setup
+        ls -l test.*
     
     - name: Upload Windows Artifacts
       if: matrix.os == 'windows-latest'
@@ -256,6 +261,7 @@ jobs:
         path: |
           tt.exe
           tt-setup.exe
+          test.exe
 
     - name: Upload Linux Artifacts
       if: matrix.os == 'ubuntu-latest'
@@ -265,6 +271,7 @@ jobs:
         path: |
           tt
           tt-setup
+          test.out
 
     - name: Upload macOS Artifacts
       if: matrix.os == 'macos-latest'
@@ -274,3 +281,4 @@ jobs:
         path: |
           tt
           tt-setup
+          test.app

@@ -34,5 +34,6 @@
 #Project stuff
 *.txt
 test.*
+!test.cpp
 .vscode/
 *.log
