@@ -82,14 +82,12 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt update
-        sudo apt install -y build-essential make
+        sudo apt install -y build-essential make libssl-dev # Install libssl-dev for OpenSSL
 
     - name: Install build tools (macOS)
       if: matrix.os == 'macos-latest'
       run: |
-        brew install gcc make
-        # Removed openldap installation and linking.
-        # We want libcurl to NOT use LDAP, so we shouldn't provide the libraries.
+        brew install gcc make openssl # Install openssl for TLS support
 
     - name: Download, configure, and build libcurl (Linux/macOS)
       if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
@@ -106,13 +104,21 @@ jobs:
         tar -xzf "${CURL_TARBALL}" # Extract the source
         cd "${CURL_DIR}" # Navigate into the extracted source directory
 
-        # Configure libcurl with the *full* set of disable/without flags from your documentation.
-        # This is the most aggressive way to ensure a minimal libcurl without unwanted dependencies.
-        # Explicitly disabling LDAP here is crucial for macOS.
+        # Set OpenSSL paths for configure on macOS
+        if [ "${{ matrix.os }}" == "macos-latest" ]; then
+          OPENSSL_PREFIX=$(brew --prefix openssl)
+          export LDFLAGS="-L${OPENSSL_PREFIX}/lib"
+          export CPPFLAGS="-I${OPENSSL_PREFIX}/include"
+          echo "macOS OpenSSL LDFLAGS: ${LDFLAGS}"
+          echo "macOS OpenSSL CPPFLAGS: ${CPPFLAGS}"
+        fi
+
+        # Configure libcurl: now enabling OpenSSL and explicitly disabling other features
         ./configure \
           --prefix="${INSTALL_DIR}" \
           --disable-shared \
           --enable-static \
+          --with-openssl \
           --disable-ftp \
           --disable-file \
           --disable-ldap \
@@ -155,7 +161,6 @@ jobs:
           --without-librtmp \
           --without-mbedtls \
           --without-nss \
-          --without-openssl \
           --without-winldap \
           --without-wincrypt \
           --without-schannel \
@@ -166,6 +171,12 @@ jobs:
         make # Compile libcurl
         make install # Install libcurl to the specified prefix
         
+        # Unset LDFLAGS and CPPFLAGS after configure/make install to avoid interference
+        if [ "${{ matrix.os }}" == "macos-latest" ]; then
+          unset LDFLAGS
+          unset CPPFLAGS
+        fi
+
         echo "--- Contents of installed curl directory ---"
         ls -R "${INSTALL_DIR}" # List installed files for debugging
         echo "------------------------------------------"
@@ -175,8 +186,8 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         INSTALL_DIR="${HOME}/curl"
-        # Added -lzstd to link against the Zstd library for Linux
-        g++ main.cpp util.c -o tt -L "${INSTALL_DIR}/lib" -I "${INSTALL_DIR}/include" -lcurl -DCURL_STATICLIB -static -static-libstdc++ -static-libgcc -std=c++17 -lzstd
+        # Link against OpenSSL and Zstd for Linux
+        g++ main.cpp util.c -o tt -L "${INSTALL_DIR}/lib" -I "${INSTALL_DIR}/include" -lcurl -DCURL_STATICLIB -static -static-libstdc++ -static-libgcc -std=c++17 -lzstd -lssl -lcrypto
 
     - name: Compile setup.cpp (Linux)
       if: matrix.os == 'ubuntu-latest'
@@ -187,14 +198,10 @@ jobs:
       if: matrix.os == 'macos-latest'
       run: |
         # Add Homebrew paths to ensure correct g++ and other tools are found
-        # For Apple Silicon Macs (M1/M2/M3)
-        export PATH="/opt/homebrew/bin:$PATH"
-        # For Intel Macs
-        export PATH="/usr/local/bin:$PATH"
+        export PATH="/opt/homebrew/bin:$PATH" # For Apple Silicon Macs (M1/M2/M3)
+        export PATH="/usr/local/bin:$PATH" # For Intel Macs
 
         # Explicitly use g++-13 (or the latest GCC version installed by Homebrew)
-        # This ensures we're using the GNU compiler, not Apple Clang, for consistent C++17 support.
-        # If g++-13 isn't found, this will fall back to g++ which might still be clang.
         GXX_CMD="g++-13"
         if ! command -v "$GXX_CMD" &> /dev/null; then
             echo "Warning: g++-13 not found, falling back to default g++."
@@ -205,12 +212,11 @@ jobs:
         $GXX_CMD --version # Print g++ version for debugging
 
         INSTALL_DIR="${HOME}/curl"
-        # Removed LDAP libraries from linking. If libcurl is configured correctly to disable LDAP,
-        # these should not be needed and can cause "library not found" errors if static versions
-        # are not readily available or if the configure truly disabled them.
+        # Link against OpenSSL libraries and macOS frameworks
         $GXX_CMD main.cpp util.c -o tt \
           -L "${INSTALL_DIR}/lib" -I "${INSTALL_DIR}/include" \
           -lcurl -DCURL_STATICLIB -std=c++17 \
+          -L"$(brew --prefix openssl)/lib" -lssl -lcrypto \
           -framework CoreFoundation -framework SystemConfiguration -lz
 
     - name: Compile setup.cpp (macOS)
