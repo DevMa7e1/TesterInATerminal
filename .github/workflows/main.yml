@@ -54,32 +54,28 @@ jobs:
         
         echo "Current PATH: $PATH"
         echo "Attempting to locate pkg-config:"
-        which pkg-config
+        which pkg-config || echo "pkg-config not found in PATH."
         
-        # Explicitly list contents of pkgconfig directory for debugging
-        echo "Contents of /ucrt64/lib/pkgconfig:"
-        ls -l /ucrt64/lib/pkgconfig/ || echo "/ucrt64/lib/pkgconfig not found or accessible"
-        ls -l /ucrt64/lib/pkgconfig/libcurl.pc || echo "libcurl.pc not found in pkgconfig directory"
-
-        # Explicitly use the MSYS2 pkg-config binary
-        PKG_CONFIG_CMD="/ucrt64/bin/pkg-config" 
-
-        echo "Using pkg-config command: $(which ${PKG_CONFIG_CMD})"
-        ${PKG_CONFIG_CMD} --version # Verify pkg-config is found and runs
-
-        # Get args required for compilation with pkg-config for both cflags (includes) and libs
-        # Using command substitution with default empty string for robustness
-        CURL_CFLAGS=$(${PKG_CONFIG_CMD} --define-prefix --static --cflags libcurl 2>/dev/null || echo "")
-        CURL_LIBS=$(${PKG_CONFIG_CMD} --define-prefix --static --libs libcurl 2>/dev/null || echo "")
-        echo "CURL_CFLAGS: $CURL_CFLAGS" # For debugging purposes
-        echo "CURL_LIBS: $CURL_LIBS" # For debugging purposes
-
-        # If CURL_CFLAGS is empty, we need to manually provide the include path
-        if [ -z "$CURL_CFLAGS" ]; then
-            echo "CURL_CFLAGS was empty. Manually setting include path."
+        # Try to get paths from pkg-config
+        # Use a subshell and check exit code to see if pkg-config succeeded
+        if PKG_CONFIG_CURL_CFLAGS=$(pkg-config --define-prefix --static --cflags libcurl 2>/dev/null); then
+            CURL_CFLAGS="${PKG_CONFIG_CURL_CFLAGS}"
+        else
+            echo "pkg-config failed for cflags. Manually setting include path."
             # Common MSYS2/MinGW-w64 include path for curl
             CURL_CFLAGS="-I/ucrt64/include"
         fi
+
+        if PKG_CONFIG_CURL_LIBS=$(pkg-config --define-prefix --static --libs libcurl 2>/dev/null); then
+            CURL_LIBS="${PKG_CONFIG_CURL_LIBS}"
+        else
+            echo "pkg-config failed for libs. Manually setting library paths."
+            # Common static libraries for curl and its dependencies on MSYS2
+            CURL_LIBS="-L/ucrt64/lib -lcurl -lssl -lcrypto -lz -lws2_32 -lwldap32 -lbcrypt -lcrypt32"
+        fi
+
+        echo "CURL_CFLAGS: $CURL_CFLAGS" # For debugging purposes
+        echo "CURL_LIBS: $CURL_LIBS" # For debugging purposes
 
         # Compile main.cpp and util.c into tt.exe
         # Added CURL_CFLAGS to ensure include paths are found
