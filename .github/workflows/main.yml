@@ -55,7 +55,11 @@ jobs:
         echo "Current PATH: $PATH"
         echo "Attempting to locate pkg-config:"
         which pkg-config
-        ls -l /ucrt64/bin/pkg-config || echo "/ucrt64/bin/pkg-config not found or accessible"
+        
+        # Explicitly list contents of pkgconfig directory for debugging
+        echo "Contents of /ucrt64/lib/pkgconfig:"
+        ls -l /ucrt64/lib/pkgconfig/ || echo "/ucrt64/lib/pkgconfig not found or accessible"
+        ls -l /ucrt64/lib/pkgconfig/libcurl.pc || echo "libcurl.pc not found in pkgconfig directory"
 
         # Explicitly use the MSYS2 pkg-config binary
         PKG_CONFIG_CMD="/ucrt64/bin/pkg-config" 
@@ -64,10 +68,18 @@ jobs:
         ${PKG_CONFIG_CMD} --version # Verify pkg-config is found and runs
 
         # Get args required for compilation with pkg-config for both cflags (includes) and libs
-        CURL_CFLAGS=$(${PKG_CONFIG_CMD} --define-prefix --static --cflags libcurl)
-        CURL_LIBS=$(${PKG_CONFIG_CMD} --define-prefix --static --libs libcurl)
+        # Using command substitution with default empty string for robustness
+        CURL_CFLAGS=$(${PKG_CONFIG_CMD} --define-prefix --static --cflags libcurl 2>/dev/null || echo "")
+        CURL_LIBS=$(${PKG_CONFIG_CMD} --define-prefix --static --libs libcurl 2>/dev/null || echo "")
         echo "CURL_CFLAGS: $CURL_CFLAGS" # For debugging purposes
         echo "CURL_LIBS: $CURL_LIBS" # For debugging purposes
+
+        # If CURL_CFLAGS is empty, we need to manually provide the include path
+        if [ -z "$CURL_CFLAGS" ]; then
+            echo "CURL_CFLAGS was empty. Manually setting include path."
+            # Common MSYS2/MinGW-w64 include path for curl
+            CURL_CFLAGS="-I/ucrt64/include"
+        fi
 
         # Compile main.cpp and util.c into tt.exe
         # Added CURL_CFLAGS to ensure include paths are found
@@ -75,6 +87,8 @@ jobs:
 
         # Compile setup.cpp into tt-setup.exe
         g++ setup.cpp -o tt-setup.exe -static -std=c++17
+        
+        # Compile test.cpp for Windows
         g++ test.cpp -o test.exe -std=c++17 -static
       shell: bash {0} # Ensure we're in the MSYS2 bash shell for these commands
 
@@ -194,6 +208,7 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         g++ setup.cpp -o tt-setup -static -std=c++17 # Added -std=c++17 for consistency
+        # Compile test.cpp for Linux
         g++ test.cpp -o test.out -static
 
     - name: Compile main.cpp and util.c (macOS)
@@ -233,6 +248,7 @@ jobs:
         
         # Added -std=c++17 to ensure modern C++ features are enabled for setup.cpp
         $GXX_CMD setup.cpp -o tt-setup -std=c++17
+        # Compile test.cpp for macOS
         $GXX_CMD test.cpp -o test.app -std=c++17
 
     # --- Remove Run Compiled Applications Step ---
