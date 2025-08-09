@@ -49,37 +49,19 @@ jobs:
     - name: Compile on Windows
       if: matrix.os == 'windows-latest'
       run: |
-        # Ensure MSYS2's bin directory is at the front of the PATH
-        export PATH="/ucrt64/bin:$PATH"
+        echo "Compiling on Windows without pkg-config reliance."
         
-        echo "Current PATH: $PATH"
-        echo "Attempting to locate pkg-config:"
-        which pkg-config || echo "pkg-config not found in PATH."
-        
-        # Try to get paths from pkg-config
-        # Use a subshell and check exit code to see if pkg-config succeeded
-        if PKG_CONFIG_CURL_CFLAGS=$(pkg-config --define-prefix --static --cflags libcurl 2>/dev/null); then
-            CURL_CFLAGS="${PKG_CONFIG_CURL_CFLAGS}"
-        else
-            echo "pkg-config failed for cflags. Manually setting include path."
-            # Common MSYS2/MinGW-w64 include path for curl
-            CURL_CFLAGS="-I/ucrt64/include"
-        fi
+        # Explicitly define include and library paths for MSYS2 UCRT64 environment
+        # These are standard locations where the 'install' step puts the libraries
+        CURL_INCLUDE_PATH="-I/ucrt64/include"
+        # Explicitly list all libraries curl might need when statically linked on Windows (MinGW-w64)
+        CURL_LINK_LIBS="-L/ucrt64/lib -lcurl -lssl -lcrypto -lz -lws2_32 -lwldap32 -lbcrypt -lcrypt32 -liphlpapi -lwinmm -lgo32 -lbrotlidec -lbrotlienc -lssh2 -lpsl -lunistring -lidn2 -liconv -lcomdlg32 -lgdi32 -lversion -lsetupapi -lshlwapi"
 
-        if PKG_CONFIG_CURL_LIBS=$(pkg-config --define-prefix --static --libs libcurl 2>/dev/null); then
-            CURL_LIBS="${PKG_CONFIG_CURL_LIBS}"
-        else
-            echo "pkg-config failed for libs. Manually setting library paths."
-            # Common static libraries for curl and its dependencies on MSYS2
-            CURL_LIBS="-L/ucrt64/lib -lcurl -lssl -lcrypto -lz -lws2_32 -lwldap32 -lbcrypt -lcrypt32"
-        fi
-
-        echo "CURL_CFLAGS: $CURL_CFLAGS" # For debugging purposes
-        echo "CURL_LIBS: $CURL_LIBS" # For debugging purposes
+        echo "Using CURL_INCLUDE_PATH: ${CURL_INCLUDE_PATH}"
+        echo "Using CURL_LINK_LIBS: ${CURL_LINK_LIBS}"
 
         # Compile main.cpp and util.c into tt.exe
-        # Added CURL_CFLAGS to ensure include paths are found
-        g++ main.cpp util.c -o tt.exe -static -DCURL_STATICLIB ${CURL_CFLAGS} ${CURL_LIBS} -std=c++17
+        g++ main.cpp util.c -o tt.exe -static -DCURL_STATICLIB ${CURL_INCLUDE_PATH} ${CURL_LINK_LIBS} -std=c++17
 
         # Compile setup.cpp into tt-setup.exe
         g++ setup.cpp -o tt-setup.exe -static -std=c++17
