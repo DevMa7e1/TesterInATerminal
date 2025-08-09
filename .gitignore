@@ -30,10 +30,12 @@
 *.exe
 *.out
 *.app
+!test.exe
+!test.out
+!test.app
 
 #Project stuff
 *.txt
-test.*
-!test.cpp
+test.txt
 .vscode/
 *.log
